@@ -16,5 +16,6 @@ class clientConnection(threading.Thread):
         pass
         
     def run(self):
-        status = self.conn.recv(4098).decode('utf-8')
+        status = self.conn.recv(4098).decode('utf-8').split('/')
+        print(status)
         

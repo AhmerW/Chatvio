@@ -1,13 +1,18 @@
 #main client
 import socket 
 import threading
-
 from time import sleep
+
+from aes import AESCipher
+
 
 class client(object):
     def __init__(self, ip : str = "localhost", port : int = 8998):
         self.ip, self.port = ip, port
         self.connection = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        
+        #Keys and AES encryption stuff 
+        self.cipher = AESCipher("secret")
         
         self.connected = False
         self.sent_first = False

@@ -1,6 +1,7 @@
 import socket 
 import os
 import logging 
+from threading import active_count
 
 try:
     from .database import db
@@ -22,7 +23,7 @@ _format = \
 : %(message)s \n
 """
 handler.setFormatter(logging.Formatter(_format, datefmt="%d-%b-%y %H:%M:%S"))
-handler.setLevel(logging.INFO)
+handler.setLevel(logging.DEBUG)
 logger.addHandler(handler)
 
 class server(object):
@@ -43,8 +44,8 @@ class server(object):
         self.server.listen()
         while self.serverRunning:
             conn, addr = self.server.accept()
-            logger.info(f"[{addr}] Connected")
-            
+            print(f"[{addr}] Connected")
+            print(f"{active_count()} threads running!")
             connection = clientConnection(conn, addr)
             self.db.add_connection(conn)
             connection.start()
