@@ -1,0 +1,23 @@
+DATABASE:
+	sqlite3 / postgre
+	//
+	or 
+	//
+	no database - use local dictionary -
+	save to database when necessary (e.g when program exists)
+
+PROGRAMMING LANGUAGES
+	Python // backend
+	- No website - "website not safe, the reason for why we dont have"
+
+	Login system?
+	-------------
+	A new seperate server system for logins
+	hash password and ??username
+
+
+	GUI (client side)
+	------------
+	Pyqt5 - python
+	?? JavaFX - Java
+

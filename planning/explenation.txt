@@ -1,0 +1,14 @@
+Client 2
+- Creates a new session
+- When host leaves -> session is deleted from server
+- each session runs on each own thread in server
+
+Client 1
+- Wants to connect to client2
+- Sends a request to our server - we respond with code
+- Client connects with code to client2
+
+
+
+
+Server
