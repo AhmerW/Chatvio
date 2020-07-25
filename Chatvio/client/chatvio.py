@@ -2,28 +2,49 @@
 Main Application for the Chatvio Video conference software.
 """
 
+## standard
 import sys 
 import os 
 import re
-from PyQt5 import QtCore, QtGui, QtWidgets
+from time import sleep
+
+## pqyt
+from PyQt5.QtCore import QTimer
 from PyQt5.QtWidgets import QAction
+from PyQt5 import QtCore, QtGui, QtWidgets
 
+## tkinter
+from tkinter import (
+    Tk,
+    Toplevel,
+    Entry,
+    Button,
+    DISABLED,
+    ACTIVE,
+    END
+) 
+## locals
 from client import client
-from ui_Settings import ui_Settings
+from dialogs.Settings import ui_Settings
+from dialogs.JoinMeeting import JoinMeeting
+from dialogs.CreateMeeting import Ui_CreateMeetingDialog
 
+# default stylesheet for pyqt5
 STYLESHEET = open("assets/styleSheet.stylesheet").read()
 
-class chatvio(object):
+class Chatvio(object):
     """
-    'main' chatvio class.
+    The Main Chatvio class.
     This class will be a gateway and connection point
     between all other classes
     """
     def __init__(self):
-        self.client = client()
-        self.setting = ui_Settings()
-        self.client.start()
-        
+        """Construcor method"""
+        ## instances
+        self.client = client() #client, connects to server
+        self.setting = ui_Settings() #settings window
+        self.createMeeting = Ui_CreateMeetingDialog() #create a meeting dialog
+                
         ## temp 
         self.sent_first = False
         
@@ -31,54 +52,112 @@ class chatvio(object):
         self.username = "guest"
         self.logged_in = False 
         self.in_meeting = False
+    
+        ## meeting variables 
+        self.hosted_meeting = False
+    
         
-    def update_values(self):
-        username = self.setting.textEdit_2.toPlainText()
-        print("username: ", username.strip())
-
+    def updateValues(self):
+        """
+        Update the values from the settings window
+        """
+        username = self.setting.textEdit_2.toPlainText().strip()
+        if re.match(r'\w+', username):
+            self.username = username
 
 ## THE GUI
 
 class ui_Chatvio(object):
+    """
+    User Interface for the Chatvio.
+    This is the main application.
+    """
     def __init__(self):
-        self.chatvio = chatvio()
+        self.chatvio = Chatvio()
         
+    def _connect(self):
+        """
+        Starts connecting to the server via TCP
+        """
+        self.chatvio.client.start()
+        ## update text
+        self.label2.setText("Connected to server")
+        self.label2.adjustSize()
         
     def on_press(self, name):
+        """
+        On-key press. This method gets called when one of the
+        three main buttons gets pressed.
+        (
+            create meeting button,
+            join meeting button,
+            login buton
+        )
+        """
+        ## update the server with the current valeues
+        if not self.chatvio.sent_first:
+            self.chatvio.sent_first = True
+            info = "username:{0.username}/logged_in:{0.logged_in}".format(self.chatvio)
+            self.chatvio.client.connection.send(bytes(
+                info, 
+                "utf-8"
+            ))
+        
+        ## the settings button (in the action menu bar) was pressed
         if name == "actionSettings":
-
             window = QtWidgets.QDialog()
             window.ui = self.chatvio.setting
             window.ui.setupUi(window)
             window.exec_()
             window.show()
-            self.chatvio.update_values()
+            self.chatvio.updateValues()
             return
-            
-            
-        ## one time-case where the server receives from this class
-        if not self.chatvio.sent_first:
-            self.chatvio.sent_first = True
-            info = \
-                "username:{0.username}/logged_in:{0.logged_in}".format(self.chatvio)
-            self.chatvio.client.connection.send(bytes(
-                info, 
-                "utf-8"
-            ))
-            
-        ## 'create a meeting' button was pressed
-        if name == "pushButton_3":
-            args = () #code, etc, will make prompt for that..
-            self.chatvio.client.send_command(
-                'create_meeting', 
-                args
-            )
         
+            
+            
+        ## 'create a meeting' button is pressed
+        if name == "pushButton_3":
+            if self.chatvio.hosted_meeting:
+                return
+                
+            ## initialize
+            window = QtWidgets.QDialog()
+            window.ui = self.chatvio.createMeeting
+            window.ui.setupUi(window)
+            window.exec_()
+            window.show()
+            
+            ## get checkbox data
+            required_pass = self.chatvio.createMeeting.checkBox.isChecked()
+            auto_mute = self.chatvio.createMeeting.checkBox_2.isChecked()
+         
+            
+            
+    
+            self.chatvio.client.sendCommand(
+                'create_meeting', 
+                (required_pass, auto_mute)
+            )
+
+            self.chatvio.hosted_meeting = True
+            return 
+        
+        ## 'join a meeting' button is pressed
+        if name == "pushButton_4":
+            joinMeeting = JoinMeeting() #join a meeting dialog
+            joinMeeting.run()
+            if joinMeeting.code == None:
+                return 
+            self.chatvio.client.sendCommand('validateid', (joinMeeting.code,))
+
+
     def setupUi(self, Chatvio):
         ## Main window
         Chatvio.setObjectName("Chatvio")
         width, height = 800, 600
         Chatvio.resize(width, height)
+        
+        QTimer.singleShot(1, self._connect)
         
         ## Font(s)
         
@@ -99,6 +178,9 @@ class ui_Chatvio(object):
         self.centralwidget.setObjectName("centralwidget")
         self.label = QtWidgets.QLabel(self.centralwidget)
         self.label.setGeometry(QtCore.QRect(260, 10, 331, 91))
+      
+        self.label2 = QtWidgets.QLabel(self.centralwidget)
+        self.label2.setGeometry(QtCore.QRect(0, 515, 50, 50))
         
         ## Pallette 
         palette = QtGui.QPalette()
@@ -203,6 +285,7 @@ class ui_Chatvio(object):
         
         Chatvio.setWhatsThis(_translate("Chatvio", "Create a public or private meeting"))
         self.label.setText(_translate("Chatvio", "Chatvio"))
+        self.label2.setText(_translate("Chatvio", "Connecting to server.."))
         
         ## BUTTONS
         self.pushButton_3.setWhatsThis(_translate("Chatvio", "Create a public or private meeting"))

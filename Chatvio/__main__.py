@@ -1,6 +1,6 @@
 import os 
 
-from server.server import server
+from server.server import Server
 
 
 ## make sure this server doesnt start twice..
@@ -10,7 +10,7 @@ if not started:
     
     
     
-    mainServer = server()
+    mainServer = Server()
     mainServer.start()
 else:
     raise ValueError("Program has already launched. Running two instances can create trouble..")
