@@ -42,6 +42,9 @@ class JoinMeeting(object):
         
         window.mainloop()
         
+    def changeButtonSize(self, height=30):
+        self.button['height'] = height
+        
     def createWidgets(self):
         ## entry
         self.entry = Entry(bg="white", fg="black")
@@ -53,6 +56,8 @@ class JoinMeeting(object):
             bg="#2d2d2d", text="Submit meeting ID", fg="orange", command=self.validate
         )
         self.button.place(x=90, y=150, height=30, width=310)
+        self.button.bind('<Enter>', lambda event : self.changeButtonSize(70))
+        self.button.bind('<Leave>', lambda event : self.changeButtonSize())
 
     def stop(self):
         self.master.destroy()

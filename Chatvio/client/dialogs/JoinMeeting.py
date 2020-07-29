@@ -57,7 +57,7 @@ class JoinMeeting(object):
 
     def stop(self):
         self.master.destroy()
-    
+
     def run(self):
         self.createWidgets()
         self.master.mainloop()
