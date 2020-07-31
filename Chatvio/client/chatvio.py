@@ -54,6 +54,8 @@ class Chatvio(object):
         
         self.logged_in = False 
         self.in_meeting = False
+        self.host = False
+        
         self.screensharing = False
         self.meeting_id = None
     
@@ -227,6 +229,8 @@ class UiChatvio(object):
             ui = UiMeetingWindow()
             ui.setupUi(self.MeetingWindow, host=True)
             chatvio.in_meeting = True
+            chatvio.host = True
+            
             self.MeetingWindow.show()
             return
         
@@ -246,6 +250,8 @@ class UiChatvio(object):
                     ui = UiMeetingWindow()
                     ui.setupUi(self.MeetingWindow, host=False)
                     chatvio.in_meeting = True 
+                    chatvio.host = False
+                    
                     self.MeetingWindow.show()
                     return
             
@@ -273,7 +279,7 @@ class UiChatvio(object):
         
 
         
-        ## Font(s)
+        ## Fonts and styling
         
         Chatvio.setFixedSize(width, height)
         font = QtGui.QFont()
@@ -369,7 +375,7 @@ class UiChatvio(object):
         self.retranslateUi(Chatvio)
         QtCore.QMetaObject.connectSlotsByName(Chatvio)
     
-        ## ADD CLICK EVENT
+        ## ADD EVENTS
 
         ALL_EVENTS = [
             self.actionSettings,
@@ -390,7 +396,7 @@ class UiChatvio(object):
                 event.triggered.connect(lambda ch, i=name: self.mouseClickEvent(i))
 
     def retranslateUi(self, Chatvio):
-        ## set text n stuff
+        ## set text
         _translate = QtCore.QCoreApplication.translate
         if chatvio.logged_in:
             text = f"Chatvio - Logged in as {chatvio.username}"
@@ -428,14 +434,16 @@ class Streamer(object):
 class UiMeetingWindow(object):
     def closeEvent(self, event, *args):
         close = QMessageBox()
-        close.setText("You sure you want to end this meeting?")
+        text = "end" if chatvio.host else "leave"
+        close.setText(f"You sure you want to {text} this meeting?")
         close.setStandardButtons(QMessageBox.Yes | QMessageBox.Cancel)
-        close = close.exec()
-        if close == 16384:
+        res = close.exec()
+        if res == 16384:
             result = client.sendCommand('end_meeting', (chatvio.meeting_id))
-            print(result)
-            chatvio.in_meeting = False
-            event.accept()
+            if result == "true":
+                chatvio.in_meeting = False
+                chatvio.host = False
+                event.accept()
         else:
             event.ignore()
     def mouseClickEvent(self, event, *args):
@@ -462,22 +470,19 @@ class UiMeetingWindow(object):
         }
         """
         print(event)
-        if event == "pushButton_14":
+        if event == "pushButton_14" or event == "pushButton_11":
+            if event == "pushButton_11":
+                _random = random.randint(1, 10)
+            else:
+                _random = ''.join(random.choice(list(string.ascii_letters)) for _ in range(16))
+                
             window = Tk()
             window.configure(bg='#2d2d2d')
-            random_password = ''.join(random.choice(list(string.ascii_letters)) for _ in range(16))
-            
-            label = Label(window, text=random_password)
+   
+            label = Label(window, text=str(_random), bg='#2d2d2d')
             label.pack()
             window.mainloop()
-        elif event == "pushButton_11":
-            window = Tk()
-            window.configure(bg='#2d2d2d')
-            number = random.randint(1, 10)
-            label = Label(window, text=str(number))
-            label.pack()
-            window.mainloop()
-            
+
     def setupUi(self, MeetingWindow, host=False):
         ## Meeting window object
         MeetingWindow.setObjectName("MeetingWindow")
@@ -505,85 +510,129 @@ class UiMeetingWindow(object):
         icon3 = QtGui.QIcon()
         icon3.addPixmap(QtGui.QPixmap("assets/chat.png"), QtGui.QIcon.Normal, QtGui.QIcon.Off)
         
+        
+        # push button 2 (mute microphone)
         self.pushButton_2 = QtWidgets.QPushButton(self.centralwidget)
         self.pushButton_2.setIcon(icon)
         self.pushButton_2.setShortcut("")
         self.pushButton_2.setFlat(False)
         self.pushButton_2.setObjectName("pushButton_2")
-        self.gridLayout.addWidget(self.pushButton_2, 1, 4, 1, 1)
+        
+        # push button 5 (view participants)
         self.pushButton_5 = QtWidgets.QPushButton(self.centralwidget)
         self.pushButton_5.setIcon(icon1)
         self.pushButton_5.setObjectName("pushButton_5")
-        self.gridLayout.addWidget(self.pushButton_5, 1, 1, 1, 1)
+        
         self.pushButton_6 = QtWidgets.QPushButton(self.centralwidget)
         self.pushButton_6.setIcon(icon2)
         self.pushButton_6.setObjectName("pushButton_6")
-        self.gridLayout.addWidget(self.pushButton_6, 1, 0, 1, 1)
+        
+
+        # push button 4 (Open chat)
         self.pushButton_4 = QtWidgets.QPushButton(self.centralwidget)
         self.pushButton_4.setIcon(icon3)
         self.pushButton_4.setObjectName("pushButton_4")
+        
+        ## grid layout
+        self.gridLayout.addWidget(self.pushButton_2, 1, 4, 1, 1)
+        self.gridLayout.addWidget(self.pushButton_5, 1, 1, 1, 1)
+        self.gridLayout.addWidget(self.pushButton_6, 1, 0, 1, 1)
         self.gridLayout.addWidget(self.pushButton_4, 1, 2, 1, 1)
+        
+        ## tab widget
         self.tabWidget = QtWidgets.QTabWidget(self.centralwidget)
         self.tabWidget.setToolTip("")
         self.tabWidget.setObjectName("tabWidget")
+        
+        ## home widget
         self.Home = QtWidgets.QWidget()
         self.Home.setObjectName("Home")
+        
         self.gridLayout_2 = QtWidgets.QGridLayout(self.Home)
         self.gridLayout_2.setObjectName("gridLayout_2")
+        
         self.groupBox = QtWidgets.QGroupBox(self.Home)
         self.groupBox.setTitle("")
         self.groupBox.setObjectName("groupBox")
-        self.gridLayout_3 = QtWidgets.QGridLayout(self.groupBox)
-        self.gridLayout_3.setObjectName("gridLayout_3")
+        
+        # main label for screensharing
+        # this label's pixmap will be edited quit often
+        # when screensharing is active.
         self.label = QtWidgets.QLabel(self.groupBox)
         self.label.setText("")
         self.label.setPixmap(QtGui.QPixmap("assets/none.png"))
         self.label.setScaledContents(True)
         self.label.setObjectName("label")
+        
+        self.gridLayout_3 = QtWidgets.QGridLayout(self.groupBox)
+        self.gridLayout_3.setObjectName("gridLayout_3")
+        
+        
+        
         self.gridLayout_3.addWidget(self.label, 0, 0, 1, 1)
         self.gridLayout_2.addWidget(self.groupBox, 0, 0, 1, 1)
         self.tabWidget.addTab(self.Home, "")
+        
         self.settings = QtWidgets.QWidget()
         self.settings.setObjectName("settings")
+        
         self.gridLayout_8 = QtWidgets.QGridLayout(self.settings)
         self.gridLayout_8.setObjectName("gridLayout_8")
+        
         self.groupBox_3 = QtWidgets.QGroupBox(self.settings)
         self.groupBox_3.setObjectName("groupBox_3")
+        
         self.pushButton_7 = QtWidgets.QPushButton(self.groupBox_3)
         self.pushButton_7.setGeometry(QtCore.QRect(430, 10, 161, 31))
         self.pushButton_7.setObjectName("pushButton_7")
-        self.gridLayout_8.addWidget(self.groupBox_3, 0, 0, 1, 1)
+
+        
         self.groupBox_2 = QtWidgets.QGroupBox(self.settings)
         self.groupBox_2.setObjectName("groupBox_2")
+        
         self.pushButton = QtWidgets.QPushButton(self.groupBox_2)
         self.pushButton.setGeometry(QtCore.QRect(430, 10, 161, 31))
         self.pushButton.setObjectName("pushButton")
+
         self.lineEdit = QtWidgets.QLineEdit(self.groupBox_2)
         self.lineEdit.setGeometry(QtCore.QRect(10, 130, 571, 22))
         self.lineEdit.setObjectName("lineEdit")
+        
         self.checkBox = QtWidgets.QCheckBox(self.groupBox_2)
         self.checkBox.setGeometry(QtCore.QRect(10, 90, 161, 20))
         self.checkBox.setChecked(True)
         self.checkBox.setObjectName("checkBox")
+        
+        self.gridLayout_8.addWidget(self.groupBox_3, 0, 0, 1, 1)
         self.gridLayout_8.addWidget(self.groupBox_2, 0, 1, 1, 1)
+        
         self.tabWidget.addTab(self.settings, "")
+        
         self.tab_2 = QtWidgets.QWidget()
         self.tab_2.setObjectName("tab_2")
+        
         self.gridLayout_5 = QtWidgets.QGridLayout(self.tab_2)
         self.gridLayout_5.setObjectName("gridLayout_5")
+        
         self.groupBox_5 = QtWidgets.QGroupBox(self.tab_2)
         self.groupBox_5.setTitle("")
         self.groupBox_5.setObjectName("groupBox_5")
+        
         self.gridLayout_4 = QtWidgets.QGridLayout(self.groupBox_5)
         self.gridLayout_4.setObjectName("gridLayout_4")
+        
         self.label_4 = QtWidgets.QLabel(self.groupBox_5)
         self.label_4.setObjectName("label_4")
+        
+        self.gridLayout_4.addWidget(self.pushButton_14, 4, 0, 1, 1)
         self.gridLayout_4.addWidget(self.label_4, 0, 0, 1, 1)
+        
         self.pushButton_14 = QtWidgets.QPushButton(self.groupBox_5)
         self.pushButton_14.setObjectName("pushButton_14")
-        self.gridLayout_4.addWidget(self.pushButton_14, 4, 0, 1, 1)
+        
         self.pushButton_12 = QtWidgets.QPushButton(self.groupBox_5)
         self.pushButton_12.setObjectName("pushButton_12")
+        
         self.gridLayout_4.addWidget(self.pushButton_12, 7, 0, 1, 1)
         self.line = QtWidgets.QFrame(self.groupBox_5)
         self.line.setFrameShape(QtWidgets.QFrame.HLine)
@@ -654,6 +703,8 @@ class UiMeetingWindow(object):
         self.statusbar.setObjectName("statusbar")
         MeetingWindow.setStatusBar(self.statusbar)
         
+        # a quick and dirty way to
+        # bind all button events to the mouseClickEvent method
         button_names = [item for item in self.__dict__ if item.startswith('push')]
         buttons = [self.__dict__[item] for item in button_names]
         
@@ -672,33 +723,45 @@ class UiMeetingWindow(object):
     def retranslateUi(self, MeetingWindow):
         _translate = QtCore.QCoreApplication.translate
         MeetingWindow.setWindowTitle(_translate("MeetingWindow", "MainWindow"))
-        MeetingWindow.setWhatsThis(_translate("MeetingWindow", "Mute your microphone"))
-        self.pushButton_2.setText(_translate("MeetingWindow", "Mute microphone"))
-        self.pushButton_5.setText(_translate("MeetingWindow", "View participants"))
-        self.pushButton_6.setText(_translate("MeetingWindow", "Leave meeting"))
-        self.pushButton_4.setText(_translate("MeetingWindow", "Open chat"))
-        self.tabWidget.setWhatsThis(_translate("MeetingWindow", "Take notes of your meeting"))
-        self.tabWidget.setTabText(self.tabWidget.indexOf(self.Home), _translate("MeetingWindow", "Home"))
-        self.groupBox_3.setTitle(_translate("MeetingWindow", "User settings"))
-        self.pushButton_7.setText(_translate("MeetingWindow", "Rest settings"))
-        self.groupBox_2.setTitle(_translate("MeetingWindow", "Admin settings"))
-        self.pushButton.setText(_translate("MeetingWindow", "Rest settings"))
-        self.lineEdit.setPlaceholderText(_translate("MeetingWindow", "Require  password to join? Leave empty if not"))
+
+        
         self.checkBox.setText(_translate("MeetingWindow", "Others are able to join?"))
-        self.tabWidget.setTabText(self.tabWidget.indexOf(self.settings), _translate("MeetingWindow", "Settings"))
-        self.label_4.setText(_translate("MeetingWindow", "<html><head/><body><p><span style=\" font-size:18pt; font-weight:600; color: white;\">Meeting tools</span></p></body></html>"))
-        self.pushButton_14.setText(_translate("MeetingWindow", "Generate random password"))
-        self.pushButton_12.setText(_translate("MeetingWindow", "Roll a dice"))
-        self.pushButton_11.setText(_translate("MeetingWindow", "Random number"))
-        self.pushButton_13.setText(_translate("MeetingWindow", "Random participant"))
-        self.tabWidget.setTabText(self.tabWidget.indexOf(self.tab_2), _translate("MeetingWindow", "Tools"))
-        self.pushButton_9.setText(_translate("MeetingWindow", "Clear notes"))
+        
+        ## text for the reset buttons
+        self.groupBox_2.setTitle(_translate("MeetingWindow", "Admin settings"))
+        self.groupBox_3.setTitle(_translate("MeetingWindow", "User settings"))
+        
+        self.label_4.setText(_translate("MeetingWindow", "<html><head/><body><p><span style=font-size:18pt; font-weight:600; color: white;>Meeting tools</span></p></body></html>"))
+        self.lineEdit.setPlaceholderText(_translate("MeetingWindow", "Require  password to join? Leave empty if not"))
+        
+        
+        ## text for the notes tab
         self.plainTextEdit.setDocumentTitle(_translate("MeetingWindow", "Your notes"))
         self.plainTextEdit.setPlaceholderText(_translate("MeetingWindow", "Type your notes here"))
-        self.pushButton_8.setText(_translate("MeetingWindow", "Save notes as .txt file"))
+        
+        ## set text to all push buttons
         self.pushButton_10.setText(_translate("MeetingWindow", "Load notes from .txt file"))
-        self.tabWidget.setTabText(self.tabWidget.indexOf(self.tab), _translate("MeetingWindow", "Notes"))
+        self.pushButton_11.setText(_translate("MeetingWindow", "Random number"))
+        self.pushButton_12.setText(_translate("MeetingWindow", "Roll a dice"))
+        self.pushButton_13.setText(_translate("MeetingWindow", "Random participant"))
+        self.pushButton_14.setText(_translate("MeetingWindow", "Generate random password"))
         self.pushButton_3.setText(_translate("MeetingWindow", "Share screen"))
+        self.pushButton_4.setText(_translate("MeetingWindow", "Open chat"))
+        self.pushButton_5.setText(_translate("MeetingWindow", "View participants"))
+        self.pushButton_6.setText(_translate("MeetingWindow", "Leave meeting"))
+        self.pushButton_7.setText(_translate("MeetingWindow", "Reset settings"))
+        self.pushButton_8.setText(_translate("MeetingWindow", "Save notes as .txt file"))
+        self.pushButton_9.setText(_translate("MeetingWindow", "Clear notes"))
+        self.pushButton_2.setText(_translate("MeetingWindow", "Mute microphone"))
+        self.pushButton.setText(_translate("MeetingWindow", "Reset settings"))
+        
+        
+        ## set text to all tab widgets
+        self.tabWidget.setTabText(self.tabWidget.indexOf(self.Home), _translate("MeetingWindow", "Home"))
+        self.tabWidget.setTabText(self.tabWidget.indexOf(self.settings), _translate("MeetingWindow", "Settings"))
+        self.tabWidget.setTabText(self.tabWidget.indexOf(self.tab), _translate("MeetingWindow", "Notes"))
+        self.tabWidget.setTabText(self.tabWidget.indexOf(self.tab_2), _translate("MeetingWindow", "Tools"))
+        self.tabWidget.setWhatsThis(_translate("MeetingWindow", "Take notes of your meeting"))
         
 if __name__ == "__main__":
     import sys
