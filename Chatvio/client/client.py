@@ -11,6 +11,7 @@ class Client(object):
         self.ip, self.port = ip, port
         self.connection = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.connected = False
+        self.streaming = False 
         
         self.command_seperator = r'/c/'
     
@@ -36,6 +37,7 @@ class Client(object):
                 'utf-8'
             )
         )
+        
         result = self.connection.recv(4080).decode('utf-8')
         return result
         

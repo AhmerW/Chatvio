@@ -14,9 +14,14 @@ CHOICES : list = list(ascii_lowercase)
 
 class Holder(object):
     clients : list = [] # all the connected clients
-    meetings : dict = {} #current meetings. all values are lists and first index is host.
+    meetings : dict = {
+        'meeting_id': {
+            'participants': [],
+            'participantNames': [],
+            'canJoin': True
+        }
+    } 
 
-    
     @classmethod
     def generateId(cls, length = 6) -> str:
         _id = ''.join(
@@ -71,9 +76,11 @@ class ClientConnection(threading.Thread):
         
         #variables
         self.con, self.adr = conn, addr
+        self.command_seperator = '/c/'
         
         #client variables
         self.connected = True
+        self.streaming = False
         
         self.name = ""
         self.logged_in = False 
@@ -81,7 +88,8 @@ class ClientConnection(threading.Thread):
         
         
     def sendToAll(self, _id, msg):
-        for client in Holder.meetings[_id][2::]:
+        for client in Holder.meetings[_id]['participants'][1::]:
+            print("sending to someone")
             client.send(bytes(msg, 'utf-8'))
         
     def handleLogin(self):
@@ -97,25 +105,31 @@ class ClientConnection(threading.Thread):
             req = req.split('_')[0].lower()
             if req == 'create':
                 self.meeting_id = Holder.generateId()
-                #first index is the host
-                #second index is if others are able to join
-                Holder.meetings[self.meeting_id] = [self.con, 'true'] 
+
+                Holder.meetings[self.meeting_id] = {'participants' : [self.con], 
+                                                    'participantNames': [self.name],
+                                                    'canJoin': True
+                                                   }
+                
                 print(f"Created meeting with id {self.meeting_id}")
                 self.con.send(bytes(f'true,{self.meeting_id}', 'utf-8'))
             elif req == 'join':
                 try:
                     _id = args[0]
-                    Holder.meetings[_id].append(self.con)
+                    Holder.meetings[_id]['participants'].append(self.con)
+                    Holder.meetings[_id]['participantNames'].append(self.name)
+                    
                     self.con.send(bytes('true', 'utf-8'))
                     print(f"joined meeting with id {_id}")
                 except Exception as e:
                     print(e)
                     self.con.send(bytes('false', 'utf-8'))
-            
             elif req == 'leave':
                 try:
                     _id = args[0]
-                    Holder.meetings[_id].remove(self.con) 
+                    Holder.meetings[_id]['participants'].remove(self.con)
+                    Holder.meetings[_id]['participantNames'].remove(self.name) 
+                    
                     self.con.send(bytes('true', 'utf-8'))
                     print(f"Left meeting with id {_id}")
                 except Exception as e:
@@ -123,7 +137,16 @@ class ClientConnection(threading.Thread):
                     self.con.send(bytes('false', 'utf-8'))
             
             elif req == 'end':
-                pass
+                try:
+                    print("Meeting ended")
+                    _id = args[0]
+                   #  self.sendToAll(_id, f"{self.command_seperator}meeting_ended")
+                    self.con.send(bytes('true', 'utf-8'))
+                    if ',' in _id:
+                        _id = _id.split(',')[-1]
+                    del Holder.meetings[_id]
+                except Exception as e:
+                    print(e)
         
         elif req.endswith('member'):
             pass
@@ -144,24 +167,39 @@ class ClientConnection(threading.Thread):
             )
         """
         try:
-            request = self.con.recv(1080).decode('utf-8')
-            args = self.con.recv(2080).decode('utf-8')
-            if request.startswith('/c/'):
-                request = request[3::]
-            if args.startswith('/c/'):
-                args = args[3::]
-            self.processRequest(request, args.split('|'))
+            if self.streaming:
+                stream = self.con.recv(2080)
+                self.sendToAll(self.meeting_id, stream)
+                status = self.con.recv(500)
+                if status == "false":
+                    self.streaming = False 
+                    self.sendToAll(self.meeting_id, "stream_ended")
+            else:
+                request = self.con.recv(1080).decode('utf-8')
+                args = self.con.recv(2080).decode('utf-8')
+                if request.startswith(self.command_seperator):
+                    request = request[3::]
+                    if request == 'stream':
+                        self.streaming = True
+                        return
+                if args.startswith(self.command_seperator):
+                    args = args[3::]
+                self.processRequest(request, args.split('|'))
         except ConnectionError:
             self.connected = False 
             return
         
     def run(self):
-        status = self.con.recv(2080).decode('utf-8').split('/')
-        for value in status:
-            if value.startswith('username'):
-                self.name = value.split(':')[-1]
-            elif value.startswith('logged_in'):
-                _status = value.split(':')[-1]
-                self.logged_in = True if _status.lower() == 'true' else False
-        while self.connected:
-            self.receiveRequest()
+        try:
+            status = self.con.recv(2080).decode('utf-8').split('/')
+            for value in status:
+                if value.startswith('username'):
+                    self.name = value.split(':')[-1]
+                elif value.startswith('logged_in'):
+                    _status = value.split(':')[-1]
+                    self.logged_in = True if _status.lower() == 'true' else False
+            while self.connected:
+                self.receiveRequest()
+        except ConnectionError:
+            self.connected = False
+            return

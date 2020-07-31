@@ -2,13 +2,17 @@
 Main Application for the Chatvio Video conference software.
 """
 
-import sys 
+
 import os 
 import re
+import sys 
+import random 
+import functools
+import string
 from time import sleep
 from PyQt5.QtCore import QTimer
-from PyQt5.QtWidgets import QAction
 from PyQt5 import QtCore, QtGui, QtWidgets
+from PyQt5.QtWidgets import QAction, QMessageBox
 from tkinter import (
     Tk,
     Toplevel,
@@ -30,6 +34,7 @@ STYLESHEET2 = open("assets/styleSheet2.stylesheet").read()
 # client instance 
 client = Client()
 
+
 class Chatvio(object):
     """
     The Main Chatvio class.
@@ -46,9 +51,11 @@ class Chatvio(object):
         
         ## user variables
         self.username = "guest"
+        
         self.logged_in = False 
         self.in_meeting = False
-        self.hosted_meeting = False
+        self.screensharing = False
+        self.meeting_id = None
     
         
     def updateValues(self):
@@ -58,6 +65,9 @@ class Chatvio(object):
         username = self.setting.textEdit_2.toPlainText().strip()
         if re.match(r'\w+', username):
             self.username = username
+
+#chatvio instance 
+chatvio = Chatvio()
 
 ## Graphical user interfaces
 
@@ -144,8 +154,6 @@ class UiChatvio(object):
     User Interface for the Chatvio.
     This is the main gui application.
     """
-    def __init__(self):
-        self.chatvio = Chatvio()
         
     def _connect(self):
         """
@@ -156,7 +164,7 @@ class UiChatvio(object):
         self.label2.setText("Connected to server")
         self.label2.adjustSize()
         
-    def on_press(self, name):
+    def mouseClickEvent(self, name):
         """
         On-key press. This method gets called when one of the
         three main buttons gets pressed.
@@ -167,9 +175,9 @@ class UiChatvio(object):
         )
         """
         ## update the server with the current valeues
-        if not self.chatvio.sent_first:
-            self.chatvio.sent_first = True
-            info = "username:{0.username}/logged_in:{0.logged_in}".format(self.chatvio)
+        if not chatvio.sent_first:
+            chatvio.sent_first = True
+            info = "username:{0.username}/logged_in:{0.logged_in}".format(chatvio)
             client.connection.send(bytes(
                 info, 
                 "utf-8"
@@ -178,30 +186,31 @@ class UiChatvio(object):
         ## the settings button (in the action menu bar) was pressed
         if name == "actionSettings":
             window = QtWidgets.QDialog()
-            window.ui = self.chatvio.setting
+            window.ui = chatvio.setting
             window.ui.setupUi(window)
             window.exec_()
             window.show()
-            self.chatvio.updateValues()
+            chatvio.updateValues()
             return
         
             
             
         ## 'create a meeting' button is pressed
         if name == "pushButton_3":
-            if self.chatvio.hosted_meeting:
+            if chatvio.in_meeting:
                 return
                 
-            ## initialize
+            ## create a dialog 
             window = QtWidgets.QDialog()
-            window.ui = self.chatvio.createMeeting
+            window.ui = chatvio.createMeeting
             window.ui.setupUi(window)
-            window.exec_()
-            window.show()
+            if not window.exec_():
+                return
+
             
             ## get checkbox data
-            required_pass = self.chatvio.createMeeting.checkBox.isChecked()
-            auto_mute = self.chatvio.createMeeting.checkBox_2.isChecked()
+            required_pass = chatvio.createMeeting.checkBox.isChecked()
+            auto_mute = chatvio.createMeeting.checkBox_2.isChecked()
          
             
             
@@ -210,28 +219,49 @@ class UiChatvio(object):
                 'create_meeting', 
                 (required_pass, auto_mute)
             )
+            chatvio.meeting_id = _id
             print(f"Created meeting with ID: {_id} ")
-            self.chatvio.hosted_meeting = True
             
             self.MeetingWindow = QtWidgets.QMainWindow()
             QtWidgets.QMainWindow()
             ui = UiMeetingWindow()
-            ui.setupUi(self.MeetingWindow)
+            ui.setupUi(self.MeetingWindow, host=True)
+            chatvio.in_meeting = True
             self.MeetingWindow.show()
             return
         
         ## 'join a meeting' button is pressed
         if name == "pushButton_4":
+            if chatvio.in_meeting:
+                return 
             joinMeeting = JoinMeeting() #join a meeting dialog
             joinMeeting.start()
             if joinMeeting.success:
                 status = client.sendCommand('join_meeting', joinMeeting.code)
                 if status == "true":
                     print(f"Joined meeting : {joinMeeting.code}")
+
+                    self.MeetingWindow = QtWidgets.QMainWindow()
+                    QtWidgets.QMainWindow()
+                    ui = UiMeetingWindow()
+                    ui.setupUi(self.MeetingWindow, host=False)
+                    chatvio.in_meeting = True 
+                    self.MeetingWindow.show()
                     return
-                
+            
             print("Failed to start meeting")
 
+
+    def closeEvent(self, event, *args):
+        close = QMessageBox()
+        close.setText("You sure you want to close Chatvio?")
+        close.setStandardButtons(QMessageBox.Yes | QMessageBox.Cancel)
+        close = close.exec()
+        if close == 16384:
+            #client.sendCommand('end_meeting', chatvio.meeting_id)
+            event.accept()
+        else:
+            event.ignore()
 
     def setupUi(self, Chatvio):
         ## Main window
@@ -240,6 +270,8 @@ class UiChatvio(object):
         Chatvio.resize(width, height)
         
         QTimer.singleShot(1, self._connect)
+        
+
         
         ## Font(s)
         
@@ -329,6 +361,8 @@ class UiChatvio(object):
         self.menubar.addAction(self.menuabout.menuAction())
         self.menubar.addAction(self.menudonate.menuAction())
 
+        chatvio.closeEvent = self.closeEvent
+
 
         
 
@@ -351,15 +385,15 @@ class UiChatvio(object):
             event = ALL_EVENTS[x]
             name = keys[values.index(event)] 
             if hasattr(event, 'clicked'):
-                event.clicked.connect(lambda ch, i=name: self.on_press(i))
+                event.clicked.connect(lambda ch, i=name: self.mouseClickEvent(i))
             else:
-                event.triggered.connect(lambda ch, i=name: self.on_press(i))
+                event.triggered.connect(lambda ch, i=name: self.mouseClickEvent(i))
 
     def retranslateUi(self, Chatvio):
         ## set text n stuff
         _translate = QtCore.QCoreApplication.translate
-        if self.chatvio.logged_in:
-            text = f"Chatvio - Logged in as {self.chatvio.username}"
+        if chatvio.logged_in:
+            text = f"Chatvio - Logged in as {chatvio.username}"
         else:
             text = "Chatvio - Not logged in"
         
@@ -385,40 +419,107 @@ class UiChatvio(object):
         self.menuabout.setTitle(_translate("Chatvio", "about"))
         self.menudonate.setTitle(_translate("Chatvio", "donate"))
         
+
+class Streamer(object):
+    def __init__(self):
+        pass
         
 
 class UiMeetingWindow(object):
-    def setupUi(self, MeetingWindow):
+    def closeEvent(self, event, *args):
+        close = QMessageBox()
+        close.setText("You sure you want to end this meeting?")
+        close.setStandardButtons(QMessageBox.Yes | QMessageBox.Cancel)
+        close = close.exec()
+        if close == 16384:
+            result = client.sendCommand('end_meeting', (chatvio.meeting_id))
+            print(result)
+            chatvio.in_meeting = False
+            event.accept()
+        else:
+            event.ignore()
+    def mouseClickEvent(self, event, *args):
+        """
+        Called when any of the buttons in the meeting window
+        is clicked.
+        {
+        
+            push_button14 : generate random password
+            push_button13 : random participant
+            push_button12 : roll a dice
+            push_button11 : random number
+            push_button10 : load notes from .txt file
+            push_button9 : clear notes
+            push_button8 : save notes as .txt file 
+            push_button7 : Rest settings (User)
+            push_button6 : leave meeting button
+            push_button5 : view participants
+            push_button4 : Open chat
+            push_button3 : share screen
+            push_button2 : mute microphone
+            push_button  : reset settings (admin)
+            
+        }
+        """
+        print(event)
+        if event == "pushButton_14":
+            window = Tk()
+            window.configure(bg='#2d2d2d')
+            random_password = ''.join(random.choice(list(string.ascii_letters)) for _ in range(16))
+            
+            label = Label(window, text=random_password)
+            label.pack()
+            window.mainloop()
+        elif event == "pushButton_11":
+            window = Tk()
+            window.configure(bg='#2d2d2d')
+            number = random.randint(1, 10)
+            label = Label(window, text=str(number))
+            label.pack()
+            window.mainloop()
+            
+    def setupUi(self, MeetingWindow, host=False):
+        ## Meeting window object
         MeetingWindow.setObjectName("MeetingWindow")
         MeetingWindow.resize(1226, 844)
         MeetingWindow.setStyleSheet(STYLESHEET2)
+        MeetingWindow.closeEvent = self.closeEvent # bind an on-close event
+        
+        
+        ## central widget
         self.centralwidget = QtWidgets.QWidget(MeetingWindow)
         self.centralwidget.setObjectName("centralwidget")
+        
+        ## grid layout
         self.gridLayout = QtWidgets.QGridLayout(self.centralwidget)
         self.gridLayout.setObjectName("gridLayout")
-        self.pushButton_2 = QtWidgets.QPushButton(self.centralwidget)
+        
+        
+        ## Icons for the bottom bar
         icon = QtGui.QIcon()
         icon.addPixmap(QtGui.QPixmap("assets/microphone.png"), QtGui.QIcon.Normal, QtGui.QIcon.Off)
+        icon1 = QtGui.QIcon()
+        icon1.addPixmap(QtGui.QPixmap("assets/team.png"), QtGui.QIcon.Normal, QtGui.QIcon.Off)
+        icon2 = QtGui.QIcon()
+        icon2.addPixmap(QtGui.QPixmap("assets/logout.png"), QtGui.QIcon.Normal, QtGui.QIcon.Off)
+        icon3 = QtGui.QIcon()
+        icon3.addPixmap(QtGui.QPixmap("assets/chat.png"), QtGui.QIcon.Normal, QtGui.QIcon.Off)
+        
+        self.pushButton_2 = QtWidgets.QPushButton(self.centralwidget)
         self.pushButton_2.setIcon(icon)
         self.pushButton_2.setShortcut("")
         self.pushButton_2.setFlat(False)
         self.pushButton_2.setObjectName("pushButton_2")
         self.gridLayout.addWidget(self.pushButton_2, 1, 4, 1, 1)
         self.pushButton_5 = QtWidgets.QPushButton(self.centralwidget)
-        icon1 = QtGui.QIcon()
-        icon1.addPixmap(QtGui.QPixmap("assets/team.png"), QtGui.QIcon.Normal, QtGui.QIcon.Off)
         self.pushButton_5.setIcon(icon1)
         self.pushButton_5.setObjectName("pushButton_5")
         self.gridLayout.addWidget(self.pushButton_5, 1, 1, 1, 1)
         self.pushButton_6 = QtWidgets.QPushButton(self.centralwidget)
-        icon2 = QtGui.QIcon()
-        icon2.addPixmap(QtGui.QPixmap("assets/logout.png"), QtGui.QIcon.Normal, QtGui.QIcon.Off)
         self.pushButton_6.setIcon(icon2)
         self.pushButton_6.setObjectName("pushButton_6")
         self.gridLayout.addWidget(self.pushButton_6, 1, 0, 1, 1)
         self.pushButton_4 = QtWidgets.QPushButton(self.centralwidget)
-        icon3 = QtGui.QIcon()
-        icon3.addPixmap(QtGui.QPixmap("assets/chat.png"), QtGui.QIcon.Normal, QtGui.QIcon.Off)
         self.pushButton_4.setIcon(icon3)
         self.pushButton_4.setObjectName("pushButton_4")
         self.gridLayout.addWidget(self.pushButton_4, 1, 2, 1, 1)
@@ -552,9 +653,20 @@ class UiMeetingWindow(object):
         self.statusbar = QtWidgets.QStatusBar(MeetingWindow)
         self.statusbar.setObjectName("statusbar")
         MeetingWindow.setStatusBar(self.statusbar)
+        
+        button_names = [item for item in self.__dict__ if item.startswith('push')]
+        buttons = [self.__dict__[item] for item in button_names]
+        
+        for x in range(len(button_names)):
+            event = buttons[x]
+            name = button_names[x]
+            if hasattr(event, 'clicked'):
+                event.clicked.connect(lambda ch, i=name: self.mouseClickEvent(i))
+            else:
+                event.triggered.connect(lambda ch, i=name: self.mouseClickEvent(i))
 
         self.retranslateUi(MeetingWindow)
-        self.tabWidget.setCurrentIndex(1)
+        self.tabWidget.setCurrentIndex(0)
         QtCore.QMetaObject.connectSlotsByName(MeetingWindow)
 
     def retranslateUi(self, MeetingWindow):
@@ -591,8 +703,8 @@ class UiMeetingWindow(object):
 if __name__ == "__main__":
     import sys
     app = QtWidgets.QApplication(sys.argv)
-    chatvio = QtWidgets.QMainWindow()
+    _chatvio = QtWidgets.QMainWindow()
     ui = UiChatvio()
-    ui.setupUi(chatvio)
-    chatvio.show()
+    ui.setupUi(_chatvio)
+    _chatvio.show()
     sys.exit(app.exec_())
