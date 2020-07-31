@@ -435,7 +435,7 @@ class UiMeetingWindow(object):
     def closeEvent(self, event, *args):
         close = QMessageBox()
         text = "end" if chatvio.host else "leave"
-        close.setText(f"You sure you want to {text} this meeting?")
+        close.setText(f"Are you sure you want to {text} this meeting?")
         close.setStandardButtons(QMessageBox.Yes | QMessageBox.Cancel)
         res = close.exec()
         if res == 16384:
@@ -470,17 +470,38 @@ class UiMeetingWindow(object):
         }
         """
         print(event)
-        if event == "pushButton_14" or event == "pushButton_11":
-            if event == "pushButton_11":
-                _random = random.randint(1, 10)
-            else:
-                _random = ''.join(random.choice(list(string.ascii_letters)) for _ in range(16))
+        if event == "pushButton_14":
+            _random = ''.join(random.choice(list(string.ascii_letters)) for _ in range(16))
                 
             window = Tk()
             window.configure(bg='#2d2d2d')
    
             label = Label(window, text=str(_random), bg='#2d2d2d')
             label.pack()
+            window.mainloop()
+        
+        if event == "pushButton_11":
+            window = Tk()
+            bg = '#2d2d2d'
+            window.configure(bg=bg)
+            window.title("Random number")
+            
+            
+            label = Label(window, text="", bg="white")
+            entry1 = Entry(window, bg=bg)
+            entry2 = Entry(window, bg=bg)
+            entry1.insert(0, 'Min range')
+            entry2.insert(0, 'Max range')
+            func = lambda : None if not entry1.get().isdigit() or not entry2.get().isdigit() else \
+                label.configure(text=random.randint(int(entry1.get()), int(entry2.get()))) if int(entry1.get()) >= int(entry2.get()) else \
+                    None
+            button = Button(window, text="Confirm", command=func, bg=bg)
+            
+            label.pack()
+            entry1.pack()
+            entry2.pack()
+            button.pack()
+
             window.mainloop()
 
     def setupUi(self, MeetingWindow, host=False):
@@ -624,11 +645,12 @@ class UiMeetingWindow(object):
         self.label_4 = QtWidgets.QLabel(self.groupBox_5)
         self.label_4.setObjectName("label_4")
         
-        self.gridLayout_4.addWidget(self.pushButton_14, 4, 0, 1, 1)
-        self.gridLayout_4.addWidget(self.label_4, 0, 0, 1, 1)
         
         self.pushButton_14 = QtWidgets.QPushButton(self.groupBox_5)
         self.pushButton_14.setObjectName("pushButton_14")
+        
+        self.gridLayout_4.addWidget(self.pushButton_14, 4, 0, 1, 1)
+        self.gridLayout_4.addWidget(self.label_4, 0, 0, 1, 1)
         
         self.pushButton_12 = QtWidgets.QPushButton(self.groupBox_5)
         self.pushButton_12.setObjectName("pushButton_12")
